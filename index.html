@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Broadcaster</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #060606;
+  --bg2: #0d0d0d;
+  --bg3: #141414;
+  --bg4: #1a1a1a;
+  --border: #1f1f1f;
+  --border2: #2a2a2a;
+  --green: #00ff88;
+  --green2: #00cc6a;
+  --green-dim: rgba(0,255,136,0.07);
+  --green-border: rgba(0,255,136,0.18);
+  --text: #e0e0e0;
+  --text2: #777;
+  --text3: #333;
+  --red: #ff4455;
+  --yellow: #ffcc00;
+  --mono: 'IBM Plex Mono', monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { height:100%; }
+body { background:var(--bg); color:var(--text); font-family:var(--mono); overflow:hidden; }
+
+/* ── WELCOME ── */
+#welcome {
+  position:fixed; inset:0; z-index:1000;
+  background:#000;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+}
+.pixel-grid {
+  position:absolute; inset:0; pointer-events:none;
+  background-image:
+    linear-gradient(rgba(0,255,136,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,136,0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+  animation: gPulse 3s ease infinite;
+}
+@keyframes gPulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+.scanline {
+  position:absolute; inset:0; pointer-events:none;
+  background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.12) 2px,rgba(0,0,0,0.12) 4px);
+}
+.corner { position:absolute; width:36px; height:36px; }
+.c-tl { top:22px; left:22px; border-top:2px solid var(--green); border-left:2px solid var(--green); }
+.c-tr { top:22px; right:22px; border-top:2px solid var(--green); border-right:2px solid var(--green); }
+.c-bl { bottom:22px; left:22px; border-bottom:2px solid var(--green); border-left:2px solid var(--green); }
+.c-br { bottom:22px; right:22px; border-bottom:2px solid var(--green); border-right:2px solid var(--green); }
+
+.wc { position:relative; z-index:2; text-align:center; display:flex; flex-direction:column; align-items:center; gap:20px; }
+.w-tag { font-size:.6rem; letter-spacing:4px; color:var(--text3); animation:fUp .5s ease both; }
+.w-name {
+  font-size:clamp(2.8rem,9vw,5.5rem); font-weight:700;
+  color:var(--green); letter-spacing:8px;
+  text-shadow:0 0 40px rgba(0,255,136,.35);
+  animation: glitch 5s ease infinite, fUp .6s .15s ease both;
+  min-height:1.1em;
+}
+@keyframes glitch {
+  0%,88%,100%{text-shadow:0 0 40px rgba(0,255,136,.35);transform:none}
+  90%{text-shadow:-2px 0 #f00,2px 0 #0ff;transform:translateX(-2px)}
+  92%{text-shadow:2px 0 #f00,-2px 0 #0ff;transform:translateX(2px)}
+  94%{text-shadow:0 0 40px rgba(0,255,136,.35);transform:none}
+}
+.w-sub { font-size:.72rem; color:var(--text2); letter-spacing:2px; animation:fUp .6s .3s ease both; }
+.w-line { font-size:.78rem; color:var(--green); min-height:1.3em; animation:fUp .6s .5s ease both; }
+.cursor { display:inline-block; animation:blink .7s step-end infinite; }
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.w-bar { width:260px; height:2px; background:var(--bg3); border-radius:2px; overflow:hidden; animation:fUp .6s .7s ease both; }
+.w-fill { height:100%; background:var(--green); width:0; animation:fillB 2.2s 1s ease forwards; box-shadow:0 0 10px var(--green); }
+@keyframes fillB{to{width:100%}}
+@keyframes fUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+#welcome.dissolve { animation:pixOut .8s ease forwards; }
+@keyframes pixOut {
+  0%{opacity:1;filter:none}
+  50%{filter:blur(0) contrast(2) brightness(2)}
+  100%{opacity:0;filter:blur(10px) brightness(0)}
+}
+
+/* ── APP ── */
+#app { display:none; height:100vh; flex-direction:column; }
+#app.visible { display:flex; }
+
+.topbar {
+  height:50px; padding:0 22px;
+  display:flex; align-items:center; justify-content:space-between;
+  border-bottom:1px solid var(--border); flex-shrink:0; background:var(--bg);
+}
+.brand { font-size:.72rem; font-weight:700; letter-spacing:3px; color:var(--green); }
+.live { display:flex; align-items:center; gap:8px; font-size:.62rem; }
+.dot { width:5px; height:5px; border-radius:50%; background:var(--green); animation:blink .7s step-end infinite; }
+.ch-tag { font-size:.6rem; color:var(--text2); padding:3px 10px; border:1px solid var(--border2); border-radius:4px; }
+.ch-tag span { color:var(--green); }
+
+.tabbar {
+  display:flex; border-bottom:1px solid var(--border);
+  flex-shrink:0; background:var(--bg);
+}
+.tab {
+  flex:1; padding:13px 0; text-align:center;
+  font-size:.65rem; letter-spacing:1.5px; text-transform:uppercase;
+  color:var(--text2); cursor:pointer; border:none; background:none;
+  border-bottom:2px solid transparent; transition:all .2s; font-family:var(--mono);
+}
+.tab:hover { color:var(--text); }
+.tab.active { color:var(--green); border-bottom-color:var(--green); }
+
+.content { flex:1; overflow:hidden; display:flex; }
+.page { display:none; flex:1; overflow-y:auto; padding:24px 22px; }
+.page.active { display:block; }
+.page::-webkit-scrollbar { width:3px; }
+.page::-webkit-scrollbar-thumb { background:var(--border2); }
+
+/* ── LABELS ── */
+.slabel { font-size:.58rem; letter-spacing:3px; text-transform:uppercase; color:var(--text3); margin-bottom:8px; }
+
+/* ── PAGE 1: SEND NOW ── */
+.fmt-pills { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:10px; }
+.pill {
+  padding:5px 11px; border-radius:4px;
+  background:var(--bg3); border:1px solid var(--border2);
+  font-size:.65rem; color:var(--text2); cursor:pointer;
+  transition:all .15s; font-family:var(--mono);
+}
+.pill:hover { border-color:var(--green); color:var(--green); }
+
+textarea.msginput {
+  width:100%; min-height:150px;
+  background:var(--bg2); border:1px solid var(--border2);
+  border-radius:8px; padding:14px;
+  color:var(--text); font-family:var(--mono); font-size:.82rem;
+  line-height:1.7; resize:vertical; outline:none; transition:border-color .2s;
+}
+textarea.msginput:focus { border-color:var(--green); }
+textarea.msginput::placeholder { color:var(--text3); }
+
+.charcount { font-size:.6rem; color:var(--text3); text-align:right; margin-top:5px; }
+
+.preview-box {
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:8px; padding:14px; margin-top:14px;
+  min-height:50px; font-size:.8rem; line-height:1.7;
+  color:var(--text); white-space:pre-wrap;
+}
+
+.sendbtn {
+  width:100%; padding:15px;
+  background:var(--green); color:#000;
+  border:none; border-radius:8px;
+  font-family:var(--mono); font-weight:700;
+  font-size:.85rem; letter-spacing:2px;
+  cursor:pointer; margin-top:14px; transition:all .2s;
+}
+.sendbtn:hover { background:var(--green2); transform:translateY(-1px); }
+
+/* ── PAGE 2: SCHEDULE ── */
+.sform {
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:10px; padding:20px;
+  display:flex; flex-direction:column; gap:14px;
+}
+.sfield { display:flex; flex-direction:column; gap:6px; }
+.sfield label { font-size:.58rem; letter-spacing:2px; color:var(--text2); }
+.sfield input, .sfield select, .sfield textarea {
+  background:var(--bg3); border:1px solid var(--border2);
+  border-radius:6px; padding:11px 13px;
+  color:var(--text); font-family:var(--mono); font-size:.8rem;
+  outline:none; transition:border-color .2s; width:100%;
+}
+.sfield input:focus, .sfield select:focus, .sfield textarea:focus { border-color:var(--green); }
+.sfield input[type=date], .sfield input[type=time] { color-scheme:dark; }
+.sfield select option { background:var(--bg3); }
+.frow { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+.addbtn {
+  padding:13px; background:transparent;
+  border:1px solid var(--green-border); border-radius:8px;
+  color:var(--green); font-family:var(--mono); font-size:.78rem;
+  letter-spacing:2px; cursor:pointer; transition:all .2s; margin-top:4px;
+}
+.addbtn:hover { background:var(--green-dim); }
+
+/* ── PAGE 3: QUEUE ── */
+.qempty {
+  text-align:center; padding:60px 20px;
+  color:var(--text3); font-size:.72rem; line-height:2;
+}
+
+.alarm {
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:10px; padding:16px 18px; margin-bottom:12px;
+  animation:slideIn .3s ease; transition:border-color .3s;
+}
+@keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.alarm.urgent { border-color:rgba(255,204,0,.3); }
+.alarm.sent { opacity:.3; }
+
+.alarm-top { display:flex; align-items:flex-start; gap:14px; }
+
+.alarm-clock { display:flex; flex-direction:column; align-items:center; min-width:90px; }
+.atime {
+  font-size:1.5rem; font-weight:700; color:var(--green);
+  letter-spacing:2px; line-height:1;
+  text-shadow:0 0 18px rgba(0,255,136,.3);
+  font-family:'Share Tech Mono', monospace;
+}
+.adate { font-size:.58rem; color:var(--text2); margin-top:4px; letter-spacing:1px; }
+
+.alarm-body { flex:1; min-width:0; }
+.amsg {
+  font-size:.8rem; color:var(--text); line-height:1.5; margin-bottom:10px;
+  overflow:hidden; text-overflow:ellipsis;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+}
+
+/* Countdown blocks */
+.cdown { display:flex; gap:6px; align-items:center; }
+.cdb {
+  background:var(--bg3); border:1px solid var(--border2);
+  border-radius:5px; padding:5px 8px; text-align:center; min-width:44px;
+}
+.cdv {
+  font-size:.9rem; font-weight:700; color:var(--text);
+  font-family:'Share Tech Mono',monospace; display:block;
+}
+.cdl { font-size:.48rem; color:var(--text3); letter-spacing:1px; margin-top:1px; }
+.cdsep { color:var(--text3); font-size:.8rem; }
+
+.astatus {
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:.58rem; letter-spacing:1px; padding:3px 8px;
+  border-radius:3px; margin-top:8px;
+}
+.st-wait { background:var(--green-dim); color:var(--green); border:1px solid var(--green-border); }
+.st-urg { background:rgba(255,204,0,.07); color:var(--yellow); border:1px solid rgba(255,204,0,.2); }
+.st-sent { background:var(--bg3); color:var(--text3); border:1px solid var(--border); }
+
+.adel {
+  background:none; border:none; cursor:pointer;
+  color:var(--text3); font-size:.85rem; padding:2px 6px;
+  transition:color .2s; flex-shrink:0; align-self:flex-start;
+}
+.adel:hover { color:var(--red); }
+
+/* ── PAGE 4: SETTINGS ── */
+.ssec {
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:10px; padding:18px; margin-bottom:14px;
+}
+.stitle { font-size:.58rem; letter-spacing:2px; color:var(--text2); margin-bottom:14px; }
+.trow {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:9px 0; border-bottom:1px solid var(--border);
+  font-size:.75rem; color:var(--text2);
+}
+.trow:last-of-type { border:none; }
+.sw {
+  width:36px; height:19px; border-radius:100px;
+  background:var(--bg4); border:1px solid var(--border2);
+  cursor:pointer; position:relative; transition:all .25s; flex-shrink:0;
+}
+.sw.on { background:var(--green); border-color:var(--green); }
+.sw::after {
+  content:''; position:absolute; top:2px; left:2px;
+  width:13px; height:13px; border-radius:50%;
+  background:var(--text3); transition:all .25s;
+}
+.sw.on::after { left:21px; background:#000; }
+.savebtn {
+  padding:11px 24px; background:var(--green); color:#000;
+  border:none; border-radius:6px; font-family:var(--mono);
+  font-weight:700; font-size:.75rem; letter-spacing:2px;
+  cursor:pointer; transition:all .2s; margin-top:14px;
+}
+.savebtn:hover { background:var(--green2); }
+
+/* TOAST */
+.toast {
+  position:fixed; bottom:22px; left:50%;
+  transform:translateX(-50%) translateY(60px);
+  background:var(--bg3); border:1px solid var(--green-border);
+  border-radius:6px; padding:10px 20px;
+  font-size:.7rem; color:var(--green); letter-spacing:1px;
+  transition:all .3s cubic-bezier(.34,1.56,.64,1);
+  z-index:500; white-space:nowrap; pointer-events:none;
+}
+.toast.show { transform:translateX(-50%) translateY(0); }
+.toast.err { border-color:rgba(255,68,85,.3); color:var(--red); }
+</style>
+</head>
+<body>
+
+<!-- WELCOME -->
+<div id="welcome">
+  <div class="pixel-grid"></div>
+  <div class="scanline"></div>
+  <div class="corner c-tl"></div><div class="corner c-tr"></div>
+  <div class="corner c-bl"></div><div class="corner c-br"></div>
+  <div class="wc">
+    <div class="w-tag">TELEGRAM BROADCASTER · v1.0</div>
+    <div class="w-name" id="wName"></div>
+    <div class="w-sub">SISTEMA DI BROADCAST CANALE</div>
+    <div class="w-line" id="wLine"><span class="cursor">_</span></div>
+    <div class="w-bar"><div class="w-fill"></div></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="brand">BROADCASTER</div>
+    <div class="live">
+      <div class="ch-tag">Canale: <span id="topCh">—</span></div>
+      <div class="dot"></div>
+      <span style="font-size:.6rem;color:var(--green)">ONLINE</span>
+    </div>
+  </div>
+
+  <div class="tabbar">
+    <button class="tab active" onclick="go(0,this)">📤 Invia Ora</button>
+    <button class="tab" onclick="go(1,this)">🕐 Programma</button>
+    <button class="tab" onclick="go(2,this)">⏰ Coda <span id="qbadge" style="color:var(--green)"></span></button>
+    <button class="tab" onclick="go(3,this)">⚙ Config</button>
+  </div>
+
+  <div class="content">
+
+    <!-- PAGE 0: SEND NOW -->
+    <div class="page active" id="p0">
+      <div class="slabel">Messaggio immediato</div>
+
+      <div class="fmt-pills">
+        <div class="pill" onclick="applyFmt('bold')"><b>B</b></div>
+        <div class="pill" onclick="applyFmt('italic')"><i>I</i></div>
+        <div class="pill" onclick="applyFmt('code')">&lt;/&gt;</div>
+        <div class="pill" onclick="applyFmt('emoji','📈')">📈</div>
+        <div class="pill" onclick="applyFmt('emoji','📉')">📉</div>
+        <div class="pill" onclick="applyFmt('emoji','⚡')">⚡</div>
+        <div class="pill" onclick="applyFmt('emoji','🔔')">🔔</div>
+        <div class="pill" onclick="applyFmt('emoji','📊')">📊</div>
+        <div class="pill" onclick="applyFmt('line')">— Riga</div>
+        <div class="pill" onclick="clearNow()">✕</div>
+      </div>
+
+      <textarea class="msginput" id="nowMsg"
+        placeholder="Scrivi il messaggio da inviare subito..."
+        oninput="prevNow();countChars()"></textarea>
+      <div class="charcount"><span id="cc">0</span> / 4096</div>
+
+      <div class="slabel" style="margin-top:16px;">Anteprima</div>
+      <div class="preview-box" id="nowPrev">Il messaggio apparirà qui...</div>
+
+      <button class="sendbtn" onclick="sendNow()">⚡ INVIA AL CANALE</button>
+    </div>
+
+    <!-- PAGE 1: SCHEDULE -->
+    <div class="page" id="p1">
+      <div class="slabel">Programma un messaggio</div>
+      <div class="sform">
+        <div class="sfield">
+          <label>MESSAGGIO</label>
+          <textarea id="sMsg" rows="5" placeholder="Scrivi il messaggio da programmare..."></textarea>
+        </div>
+        <div class="frow">
+          <div class="sfield">
+            <label>DATA</label>
+            <input type="date" id="sDate">
+          </div>
+          <div class="sfield">
+            <label>ORA</label>
+            <input type="time" id="sTime" value="09:00">
+          </div>
+        </div>
+        <div class="sfield">
+          <label>RIPETIZIONE</label>
+          <select id="sRepeat">
+            <option value="none">Nessuna</option>
+            <option value="daily">Ogni giorno</option>
+            <option value="weekly">Ogni settimana</option>
+            <option value="weekdays">Lun – Ven</option>
+          </select>
+        </div>
+        <button class="addbtn" onclick="addQueue()">+ AGGIUNGI ALLA CODA</button>
+      </div>
+    </div>
+
+    <!-- PAGE 2: QUEUE -->
+    <div class="page" id="p2">
+      <div class="slabel">In coda — <span id="qcount">0</span> messaggi</div>
+      <div id="qList">
+        <div class="qempty">Nessun messaggio programmato.<br>Vai su "Programma" per aggiungerne uno.</div>
+      </div>
+    </div>
+
+    <!-- PAGE 3: SETTINGS -->
+    <div class="page" id="p3">
+      <div class="slabel">Configurazione</div>
+      <div class="ssec">
+        <div class="stitle">COLLEGAMENTO TELEGRAM</div>
+        <div class="sfield" style="margin-bottom:12px">
+          <label>BOT TOKEN</label>
+          <input type="password" id="cfgTok" placeholder="123456789:ABCdef...">
+        </div>
+        <div class="sfield">
+          <label>CHANNEL ID</label>
+          <input type="text" id="cfgCh" placeholder="@miocanale o -100xxxxxxxx">
+        </div>
+        <button class="savebtn" onclick="saveConf()">SALVA</button>
+      </div>
+      <div class="ssec">
+        <div class="stitle">PREFERENZE</div>
+        <div class="trow">Conferma prima di inviare <div class="sw on" onclick="this.classList.toggle('on')"></div></div>
+        <div class="trow">Notifica quando inviato <div class="sw on" onclick="this.classList.toggle('on')"></div></div>
+        <div class="trow">Modalità silenziosa (notte) <div class="sw" onclick="this.classList.toggle('on')"></div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── WELCOME ──
+const NAME = 'ANTONIO';
+const LINES = ['> INIZIALIZZAZIONE...','> CONNESSIONE TELEGRAM: OK','> BENVENUTO, ANTONIO.'];
+let ni=0, li=0, ci=0;
+const wName=document.getElementById('wName');
+const wLine=document.getElementById('wLine');
+
+function typeName(){
+  wName.textContent = NAME.substring(0,ni);
+  if(ni++ <= NAME.length) setTimeout(typeName, 80);
+  else setTimeout(typeLines, 400);
+}
+
+function typeLines(){
+  if(li>=LINES.length){ setTimeout(launch,500); return; }
+  const l=LINES[li];
+  if(ci<=l.length){
+    wLine.innerHTML=l.substring(0,ci)+'<span class="cursor">_</span>';
+    ci++;
+    setTimeout(typeLines,40);
+  } else { ci=0; li++; setTimeout(typeLines,320); }
+}
+
+function launch(){
+  const w=document.getElementById('welcome');
+  w.classList.add('dissolve');
+  setTimeout(()=>{
+    w.style.display='none';
+    document.getElementById('app').classList.add('visible');
+    tick();
+  },800);
+}
+
+setTimeout(typeName, 700);
+
+// ── NAVIGATION ──
+function go(i,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('p'+i).classList.add('active');
+  el.classList.add('active');
+}
+
+// ── COMPOSE ──
+function applyFmt(type,val){
+  const ta=document.getElementById('nowMsg');
+  const s=ta.selectionStart, e=ta.selectionEnd;
+  const sel=ta.value.substring(s,e)||'testo';
+  let ins='';
+  if(type==='bold') ins=`**${sel}**`;
+  else if(type==='italic') ins=`_${sel}_`;
+  else if(type==='code') ins=`\`${sel}\``;
+  else if(type==='emoji') ins=val+' ';
+  else if(type==='line') ins='\n— ';
+  ta.value=ta.value.substring(0,s)+ins+ta.value.substring(e);
+  ta.focus(); prevNow(); countChars();
+}
+function prevNow(){
+  const v=document.getElementById('nowMsg').value;
+  document.getElementById('nowPrev').textContent=v||'Il messaggio apparirà qui...';
+}
+function countChars(){
+  document.getElementById('cc').textContent=document.getElementById('nowMsg').value.length;
+}
+function clearNow(){
+  document.getElementById('nowMsg').value=''; prevNow(); countChars();
+}
+async async function sendNow(){
+  const msg=document.getElementById('nowMsg').value.trim();
+  if(!msg){ toast('⚠ Scrivi un messaggio',1); return; }
+  const btn=document.querySelector('.sendbtn');
+  btn.textContent='⏳ Invio...'; btn.disabled=true;
+  try {
+    const res = await fetch('https://api.telegram.org/bot8617778971:AAHzRpmsEqgJ8RWoKAfhD6S9quoM3dMDDg4/sendMessage', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ chat_id: '-1003774187052', text: msg, parse_mode: 'Markdown' })
+    });
+    const data = await res.json();
+    if(data.ok){ toast('⚡ Messaggio inviato!'); clearNow(); }
+    else { toast('❌ Errore: '+data.description, 1); }
+  } catch(e){ toast('❌ Errore di rete',1); }
+  btn.textContent='⚡ INVIA AL CANALE'; btn.disabled=false;
+}
+
+// ── QUEUE ──
+let queue=[];
+document.getElementById('sDate').valueAsDate=new Date();
+
+function addQueue(){
+  const msg=document.getElementById('sMsg').value.trim();
+  const date=document.getElementById('sDate').value;
+  const time=document.getElementById('sTime').value;
+  const repeat=document.getElementById('sRepeat').value;
+  if(!msg){ toast('⚠ Scrivi un messaggio',1); return; }
+  if(!date||!time){ toast('⚠ Imposta data e ora',1); return; }
+  const target=new Date(date+'T'+time);
+  if(target<=new Date()){ toast('⚠ Data nel passato',1); return; }
+  queue.push({id:Date.now(),msg,target,repeat,sent:false});
+  renderQ();
+  toast('✓ Aggiunto alla coda!');
+  document.getElementById('sMsg').value='';
+  document.getElementById('sRepeat').value='none';
+  go(2,document.querySelectorAll('.tab')[2]);
+}
+
+function delQ(id){
+  queue=queue.filter(q=>q.id!==id);
+  renderQ();
+}
+
+function renderQ(){
+  const list=document.getElementById('qList');
+  const cnt=document.getElementById('qcount');
+  const badge=document.getElementById('qbadge');
+  const pending=queue.filter(q=>!q.sent);
+  cnt.textContent=pending.length;
+  badge.textContent=pending.length?`(${pending.length})`:'';
+
+  if(!queue.length){
+    list.innerHTML='<div class="qempty">Nessun messaggio programmato.<br>Vai su "Programma" per aggiungerne uno.</div>';
+    return;
+  }
+
+  list.innerHTML=queue.map(q=>{
+    const now=new Date(), diff=q.target-now;
+    const sent=q.sent||diff<=0;
+    const days=Math.max(0,Math.floor(diff/86400000));
+    const hrs=Math.max(0,Math.floor((diff%86400000)/3600000));
+    const mins=Math.max(0,Math.floor((diff%3600000)/60000));
+    const secs=Math.max(0,Math.floor((diff%60000)/1000));
+    const urgent=!sent&&diff<3600000;
+    const dateStr=q.target.toLocaleDateString('it',{day:'2-digit',month:'short'});
+    const timeStr=q.target.toLocaleTimeString('it',{hour:'2-digit',minute:'2-digit'});
+    const rLabel={none:'',daily:'· Ogni giorno',weekly:'· Ogni settimana',weekdays:'· Lun–Ven'}[q.repeat]||'';
+
+    const statusEl=sent
+      ?`<div class="astatus st-sent">✓ INVIATO</div>`
+      :urgent
+        ?`<div class="astatus st-urg">◉ URGENTE ${rLabel}</div>`
+        :`<div class="astatus st-wait">◎ IN ATTESA ${rLabel}</div>`;
+
+    const cdEl=!sent?`
+      <div class="cdown">
+        <div class="cdb"><span class="cdv" id="d_${q.id}">${p2(days)}</span><span class="cdl">GIORNI</span></div>
+        <div class="cdsep">:</div>
+        <div class="cdb"><span class="cdv" id="h_${q.id}">${p2(hrs)}</span><span class="cdl">ORE</span></div>
+        <div class="cdsep">:</div>
+        <div class="cdb"><span class="cdv" id="m_${q.id}">${p2(mins)}</span><span class="cdl">MIN</span></div>
+        <div class="cdsep">:</div>
+        <div class="cdb"><span class="cdv" id="s_${q.id}">${p2(secs)}</span><span class="cdl">SEC</span></div>
+      </div>`:'';
+
+    return `<div class="alarm${urgent?' urgent':''}${sent?' sent':''}" id="a_${q.id}">
+      <div class="alarm-top">
+        <div class="alarm-clock">
+          <div class="atime">${timeStr}</div>
+          <div class="adate">${dateStr}</div>
+        </div>
+        <div class="alarm-body">
+          <div class="amsg">${q.msg}</div>
+          ${cdEl}${statusEl}
+        </div>
+        <button class="adel" onclick="delQ(${q.id})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function p2(n){return String(n).padStart(2,'0');}
+
+function tick(){
+  setInterval(()=>{
+    const now=new Date();
+    queue.forEach(q=>{
+      if(q.sent) return;
+      const diff=q.target-now;
+      if(diff<=0){
+        q.sent=true;
+        fetch('https://api.telegram.org/bot8617778971:AAHzRpmsEqgJ8RWoKAfhD6S9quoM3dMDDg4/sendMessage', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ chat_id: '-1003774187052', text: q.msg, parse_mode: 'Markdown' })
+        }).then(r=>r.json()).then(d=>{
+          if(d.ok) toast('📤 Messaggio inviato automaticamente!');
+          else toast('❌ Errore invio automatico: '+d.description, 1);
+        }).catch(()=>toast('❌ Errore di rete invio automatico',1));
+        renderQ();
+        return;
+      }
+      const up=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=p2(v);};
+      up('d_'+q.id,Math.floor(diff/86400000));
+      up('h_'+q.id,Math.floor((diff%86400000)/3600000));
+      up('m_'+q.id,Math.floor((diff%3600000)/60000));
+      up('s_'+q.id,Math.floor((diff%60000)/1000));
+      const card=document.getElementById('a_'+q.id);
+      if(card){diff<3600000?card.classList.add('urgent'):card.classList.remove('urgent');}
+    });
+  },1000);
+}
+
+// ── SETTINGS ──
+function saveConf(){
+  const tok=document.getElementById('cfgTok').value.trim();
+  const ch=document.getElementById('cfgCh').value.trim();
+  if(!tok||!ch){toast('⚠ Inserisci token e canale',1);return;}
+  document.getElementById('topCh').textContent=ch;
+  toast('✓ Configurazione salvata');
+}
+
+// ── TOAST ──
+function toast(msg,err){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='toast'+(err?' err':'')+' show';
+  setTimeout(()=>t.className='toast',2800);
+}
+</script>
+</body>
+</html>
