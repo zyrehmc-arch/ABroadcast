@@ -43,6 +43,7 @@ def only_admin(func):
 
 def main_menu():
     kb = [
+        [InlineKeyboardButton("🖥 Apri Pannello", web_app=WebAppInfo(url="https://zyrehmc-arch.github.io/ABroadcast"))],
         [InlineKeyboardButton("📤 Invia messaggio ora",     callback_data="send_now")],
         [InlineKeyboardButton("🕐 Programma messaggio",     callback_data="schedule")],
         [InlineKeyboardButton("⏰ Vedi coda messaggi",      callback_data="queue")],
