@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # ── CONFIG ──
 BOT_TOKEN   = os.environ["BOT_TOKEN"]
 CHANNEL_ID  = os.environ["CHANNEL_ID"]   # es. @miocanale o -100xxxxxxxx
-ADMIN_ID    = int(os.environ["ADMIN_ID"]) # il tuo Telegram user ID
+ADMIN_IDS = set(map(int, os.environ["ADMIN_IDS"].split(",")))
 TIMEZONE    = os.environ.get("TIMEZONE", "Europe/Rome")
 
 tz = pytz.timezone(TIMEZONE)
@@ -35,7 +35,7 @@ scheduler = AsyncIOScheduler(timezone=tz)
 def only_admin(func):
     """Decorator — solo l'admin può usare il comando."""
     async def wrapper(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-        if update.effective_user.id != ADMIN_ID:
+        if update.effective_user.id not in ADMIN_IDS:
             await update.message.reply_text("❌ Non autorizzato.")
             return
         return await func(update, ctx)
